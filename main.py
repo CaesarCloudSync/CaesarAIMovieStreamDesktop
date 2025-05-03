@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QTimer, QUrl, QSize
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
-from PyQt5.QtGui import QPixmap, QPainter, QPainterPath
+from PyQt5.QtGui import QPixmap, QPainter, QPainterPath, QIcon
 
 # TMDb API key
 TMDB_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJmZTlkOTQ4OWE1MzMwMGI4ZGE4NTBlNjM0OTQ3NWM1MiIsIm5iZiI6MTcwNTM1MDU2Ni44LCJzdWIiOiI2NWE1OTVhNmQwNWEwMzAwYzhhOWViYzYiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.Co9vbQKxQUwV5sbON3CzQ3jUPHBvwMRrkFVn3V8WNzE"
@@ -60,11 +60,9 @@ class ItemCard(QWidget):
             QTimer.singleShot(0, self.fetch_image_async)
 
     def set_rounded_image(self, pixmap, radius=10):
-        # Scale pixmap to label size
         scaled_pixmap = pixmap.scaled(
             self.image_label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
-        # Create rounded pixmap
         rounded = QPixmap(self.image_label.size())
         rounded.fill(Qt.transparent)
 
@@ -92,7 +90,7 @@ class ItemCard(QWidget):
             pixmap.loadFromData(image_data)
             poster_path = self.item.get("poster_path", "")
             self.image_cache[poster_path] = pixmap
-            self.set_rounded_image(pixmap)  # Apply rounded corners
+            self.set_rounded_image(pixmap)
         else:
             print(f"Failed to load image: {reply.errorString()}")
         reply.deleteLater()
@@ -230,10 +228,40 @@ class SeriesWidget(ContentWidget):
     def __init__(self):
         super().__init__("tv/top_rated")
 
+class DiscoverWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+        label = QLabel("Discover Widget")
+        label.setStyleSheet("color: #FFFFFF; font-size: 24px;")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+        self.setLayout(layout)
+
+class LibraryWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+        label = QLabel("Library Widget")
+        label.setStyleSheet("color: #FFFFFF; font-size: 24px;")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+        self.setLayout(layout)
+
+class CalendarWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QVBoxLayout()
+        label = QLabel("Calendar Widget")
+        label.setStyleSheet("color: #FFFFFF; font-size: 24px;")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+        self.setLayout(layout)
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Amari Movies")
+        self.setWindowTitle("CaesarAIMoviesStream")
         self.setStyleSheet("background-color: #18181b;")
         self.setMinimumSize(1900, 1080)
 
@@ -247,42 +275,37 @@ class MainWindow(QMainWindow):
 
         # Left navigation bar
         left_nav = QWidget()
-        left_nav.setFixedWidth(80)
+        left_nav.setFixedWidth(120)
         left_nav.setStyleSheet("background-color: #18181b;")
 
         # Button container for centered layout
         button_container = QWidget()
         left_nav_layout = QVBoxLayout()
         left_nav_layout.setContentsMargins(10, 10, 10, 10)
-        left_nav_layout.setSpacing(60)  # Reverted to balanced spacing
+        left_nav_layout.setSpacing(60)
         left_nav_layout.setAlignment(Qt.AlignCenter)
 
-        # Dummy logo
-        logo_label = QLabel("Logo")
-        logo_label.setFixedSize(60, 60)
-        logo_label.setStyleSheet("""
-            color: #FFFFFF;
-            background-color: #252528;
-            font-size: 20px;
-            font-weight: bold;
-            border-radius: 6px;
-            text-align: center;
-        """)
+        logo_label = QLabel()
+        logo_label.setFixedSize(90, 90)
+        logo_label.setPixmap(QPixmap("imgs/CaesarAIMoviesLogo.png").scaled(90, 90, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        logo_label.setAlignment(Qt.AlignCenter)
         left_nav_layout.addWidget(logo_label)
 
         # Left nav buttons
-        nav_buttons = ["Home", "Discover", "Library", "Calendar"]
+        nav_buttons = [{"link":"Home","icon":"imgs/home.png"}, {"link":"Discover","icon":"imgs/discover.png"}, {"link":"Library","icon":"imgs/gallery.png"}, {"link":"Calendar","icon":"imgs/calendar.png"}]
         self.left_nav_buttons = []
         for label in nav_buttons:
-            btn = QPushButton(label)
-            btn.setFixedSize(60, 60)
+            btn = QPushButton()
+            btn.setFixedSize(90, 90)
+            btn.setIcon(QIcon(label["icon"]))
+            btn.setIconSize(QSize(60, 60))
             btn.setStyleSheet("""
                 QPushButton {
                     color: #FFFFFF;
-                    background-color: #252528;
                     border: none;
                     border-radius: 6px;
                     font-size: 20px;
+                    background-color: transparent;
                 }
                 QPushButton:hover {
                     background-color: #3a3a3c;
@@ -290,7 +313,12 @@ class MainWindow(QMainWindow):
                 QPushButton:pressed {
                     background-color: #4a4a4c;
                 }
+                QPushButton:checked {
+                    background-color: #252528;
+                }
             """)
+            btn.setCheckable(True)
+            btn.clicked.connect(self.navigate_left_nav_widget)
             left_nav_layout.addWidget(btn)
             self.left_nav_buttons.append(btn)
 
@@ -318,9 +346,6 @@ class MainWindow(QMainWindow):
         top_nav_layout.setContentsMargins(15, 10, 15, 10)
         top_nav_layout.setSpacing(10)
 
-
-
-        # Center stretch for search bar
         top_nav_layout.addStretch(1)
 
         # Search bar
@@ -342,12 +367,11 @@ class MainWindow(QMainWindow):
         """)
         top_nav_layout.addWidget(search_bar)
 
-        # Right stretch for centering
         top_nav_layout.addStretch(1)
 
         top_nav_bar.setLayout(top_nav_layout)
         self.fullscreen_button = QPushButton("⛶")
-        self.fullscreen_button.setStyleSheet("""color:white;""")
+        self.fullscreen_button.setStyleSheet("color:white;")
         self.fullscreen_button.setFixedSize(40, 40)
         self.fullscreen_button.clicked.connect(self.toggle_fullscreen)
         top_nav_layout.addWidget(self.fullscreen_button)
@@ -374,6 +398,8 @@ class MainWindow(QMainWindow):
                     font-size: 16px;
                     font-weight: bold;
                     padding: 5px 15px;
+                    border-top-left-radius: 5px;
+                    border-top-right-radius: 5px;
                 }
                 QPushButton:hover {
                     background-color: #252528;
@@ -394,9 +420,12 @@ class MainWindow(QMainWindow):
 
         # Content stack
         self.content_stack = QStackedWidget()
-        self.content_stack.addWidget(Home())
-        self.content_stack.addWidget(AnimeWidget())
-        self.content_stack.addWidget(SeriesWidget())
+        self.content_stack.addWidget(Home())          # Index 0: Home
+        self.content_stack.addWidget(AnimeWidget())   # Index 1: Anime
+        self.content_stack.addWidget(SeriesWidget())  # Index 2: Series
+        self.content_stack.addWidget(DiscoverWidget())# Index 3: Discover
+        self.content_stack.addWidget(LibraryWidget()) # Index 4: Library
+        self.content_stack.addWidget(CalendarWidget())# Index 5: Calendar
         content_layout.addWidget(self.content_stack, stretch=1)
 
         content_widget.setLayout(content_layout)
@@ -407,15 +436,34 @@ class MainWindow(QMainWindow):
 
         # Set initial state
         self.content_nav_buttons[0].setChecked(True)
+        self.left_nav_buttons[0].setChecked(True)
+
+    def navigate_left_nav_widget(self):
+        sender = self.sender()
+        index = self.left_nav_buttons.index(sender)
+        # Map left nav buttons to content stack indices
+        nav_mapping = {
+            0: 0,  # Home -> Home
+            1: 3,  # Discover -> Discover
+            2: 4,  # Library -> Library
+            3: 5   # Calendar -> Calendar
+        }
+        stack_index = nav_mapping.get(index, 0)
+        for btn in self.left_nav_buttons:
+            btn.setChecked(btn == sender)
+        self.content_stack.setCurrentIndex(stack_index)
+        # Reset content nav buttons when switching to non-content widgets
+        if stack_index >= 3:  # Discover, Library, Calendar
+            for btn in self.content_nav_buttons:
+                btn.setChecked(False)
 
     def toggle_fullscreen(self):
-        main_window = self.window()
         if not self.is_fullscreen:
-            main_window.showFullScreen()
+            self.showFullScreen()
             self.fullscreen_button.setText("⛶")
             self.is_fullscreen = True
         else:
-            main_window.showNormal()
+            self.showNormal()
             self.fullscreen_button.setText("⛶")
             self.is_fullscreen = False
 
@@ -425,6 +473,9 @@ class MainWindow(QMainWindow):
         for btn in self.content_nav_buttons:
             btn.setChecked(btn == sender)
         self.content_stack.setCurrentIndex(index)
+        # Ensure left nav highlights Home when switching content
+        for btn in self.left_nav_buttons:
+            btn.setChecked(self.left_nav_buttons[0] == btn)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
