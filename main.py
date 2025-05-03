@@ -3,9 +3,9 @@ import os
 import requests
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
-    QLabel, QFrame, QPushButton, QStackedWidget, QLineEdit
+    QLabel, QFrame, QPushButton, QStackedWidget, QLineEdit, QListWidget, QListWidgetItem
 )
-from PyQt5.QtCore import Qt, QTimer, QUrl, QSize
+from PyQt5.QtCore import Qt, QTimer, QUrl, QSize, pyqtSignal
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt5.QtGui import QPixmap, QPainter, QPainterPath, QIcon
 
@@ -13,6 +13,8 @@ from PyQt5.QtGui import QPixmap, QPainter, QPainterPath, QIcon
 TMDB_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJmZTlkOTQ4OWE1MzMwMGI4ZGE4NTBlNjM0OTQ3NWM1MiIsIm5iZiI6MTcwNTM1MDU2Ni44LCJzdWIiOiI2NWE1OTVhNmQwNWEwMzAwYzhhOWViYzYiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.Co9vbQKxQUwV5sbON3CzQ3jUPHBvwMRrkFVn3V8WNzE"
 
 class ItemCard(QWidget):
+    clicked = pyqtSignal(dict)  # Signal to emit item data when clicked
+
     def __init__(self, item, image_cache, parent=None):
         super().__init__(parent)
         self.item = item
@@ -31,6 +33,7 @@ class ItemCard(QWidget):
             background-color: #252528;
             border: none;
         """)
+        self.poster_label.setCursor(Qt.PointingHandCursor)  # Indicate clickable
 
         self.image_label = QLabel(self.poster_label)
         self.image_label.setAlignment(Qt.AlignCenter)
@@ -45,7 +48,7 @@ class ItemCard(QWidget):
 
         title = item.get("title", item.get("name", "Unknown"))
         title_label = QLabel(title)
-        title_label.setStyleSheet("color: #FFFFFF; font-size: 20px; font-weight: bold;font-family: 'Calibri';")
+        title_label.setStyleSheet("color: #FFFFFF; font-size: 20px; font-weight: bold; font-family: 'Calibri';")
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setWordWrap(True)
         layout.addWidget(title_label)
@@ -58,6 +61,9 @@ class ItemCard(QWidget):
             self.image_loaded = True
         else:
             QTimer.singleShot(0, self.fetch_image_async)
+
+        # Make the poster clickable
+        self.poster_label.mousePressEvent = self.on_poster_clicked
 
     def set_rounded_image(self, pixmap, radius=10):
         scaled_pixmap = pixmap.scaled(
@@ -95,10 +101,14 @@ class ItemCard(QWidget):
             print(f"Failed to load image: {reply.errorString()}")
         reply.deleteLater()
 
+    def on_poster_clicked(self, event):
+        self.clicked.emit(self.item)  # Emit the item data when clicked
+
 class ContentWidget(QWidget):
-    def __init__(self, api_endpoint):
+    def __init__(self, api_endpoint, main_window):
         super().__init__()
         self.api_endpoint = api_endpoint
+        self.main_window = main_window  # Reference to MainWindow
         self.page_num = 1
         self.items = []
         self.is_loading = False
@@ -119,8 +129,25 @@ class ContentWidget(QWidget):
                 border: none;
             }
             QScrollBar:vertical {
-                background: transparent;
-                width: 0px;
+                background: #18181b;
+                width: 8px;
+                margin: 0px 0px 0px 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #4a4a4c;
+                min-height: 20px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #5a5a5c;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                background: none;
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
             }
         """)
         self.scroll_area.verticalScrollBar().valueChanged.connect(self.on_scroll)
@@ -197,6 +224,7 @@ class ContentWidget(QWidget):
 
             for j, item in enumerate(row_items):
                 item_card = ItemCard(item, self.image_cache)
+                item_card.clicked.connect(self.main_window.show_details)  # Connect to MainWindow's show_details
                 row_layout.addWidget(item_card)
                 row_layout.setStretch(j, 1)
 
@@ -213,20 +241,138 @@ class ContentWidget(QWidget):
 
     def on_scroll(self):
         scroll_bar = self.scroll_area.verticalScrollBar()
-        if scroll_bar.value() >= scroll_bar.maximum() - 100 and not self.is_loading:
-            self.load_items()
+        if scroll_bar.value() >= scroll_bar.maximum() - 200 and not self.is_loading:
+            QTimer.singleShot(100, self.load_items)  # Add slight delay for smoother loading
+
+class DetailsWidget(QWidget):
+    def __init__(self, item, image_cache, main_window, parent=None):
+        super().__init__(parent)
+        self.item = item
+        self.image_cache = image_cache
+        self.main_window = main_window  # Reference to MainWindow
+
+        layout = QVBoxLayout()
+        layout.setSpacing(20)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setAlignment(Qt.AlignTop)
+
+        # Back button
+        back_button = QPushButton("Back")
+        back_button.setFixedWidth(100)
+        back_button.setStyleSheet("""
+            QPushButton {
+                color: #FFFFFF;
+                background-color: #252528;
+                border: none;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 16px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3c;
+            }
+            QPushButton:pressed {
+                background-color: #4a4a4c;
+            }
+        """)
+        back_button.clicked.connect(self.go_back)
+        layout.addWidget(back_button, alignment=Qt.AlignLeft)
+
+        # Title
+        title = item.get("title", item.get("name", "Unknown"))
+        title_label = QLabel(title)
+        title_label.setStyleSheet("color: #FFFFFF; font-size: 28px; font-weight: bold; font-family: 'Calibri';")
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setWordWrap(True)
+        layout.addWidget(title_label)
+
+        # Poster
+        poster_frame = QFrame()
+        poster_frame.setFixedSize(300, 450)
+        poster_frame.setStyleSheet("""
+            border-radius: 10px;
+            background-color: #252528;
+            border: none;
+        """)
+
+        poster_label = QLabel(poster_frame)
+        poster_label.setAlignment(Qt.AlignCenter)
+        poster_label.setGeometry(0, 0, 300, 450)
+        poster_label.setScaledContents(True)
+        poster_label.setStyleSheet("background-color: #252528; border-radius: 10px;")
+
+        poster_path = self.item.get("poster_path", "")
+        if poster_path in self.image_cache:
+            self.set_rounded_image(poster_label, self.image_cache[poster_path])
+        else:
+            self.fetch_image_async(poster_label, poster_path)
+
+        layout.addWidget(poster_frame, alignment=Qt.AlignCenter)
+
+        # Description
+        description = item.get("overview", "No description available.")
+        description_label = QLabel(description)
+        description_label.setStyleSheet("color: #FFFFFF; font-size: 16px; font-family: 'Calibri';")
+        description_label.setAlignment(Qt.AlignCenter)
+        description_label.setWordWrap(True)
+        layout.addWidget(description_label)
+
+        layout.addStretch()
+        self.setLayout(layout)
+
+    def set_rounded_image(self, label, pixmap, radius=10):
+        scaled_pixmap = pixmap.scaled(
+            label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        rounded = QPixmap(label.size())
+        rounded.fill(Qt.transparent)
+
+        painter = QPainter(rounded)
+        painter.setRenderHint(QPainter.Antialiasing)
+        path = QPainterPath()
+        path.addRoundedRect(0, 0, label.width(), label.height(), radius, radius)
+        painter.setClipPath(path)
+        painter.drawPixmap(0, 0, scaled_pixmap)
+        painter.end()
+
+        label.setPixmap(rounded)
+
+    def fetch_image_async(self, label, poster_path):
+        image_url = f"https://image.tmdb.org/t/p/w780{poster_path}"
+        request = QNetworkRequest(QUrl(image_url))
+        network_manager = QNetworkAccessManager(self)
+        network_manager.finished.connect(lambda reply: self.on_image_fetched(reply, label, poster_path))
+        network_manager.get(request)
+
+    def on_image_fetched(self, reply, label, poster_path):
+        if reply.error() == QNetworkReply.NoError:
+            image_data = reply.readAll()
+            pixmap = QPixmap()
+            pixmap.loadFromData(image_data)
+            self.image_cache[poster_path] = pixmap
+            self.set_rounded_image(label, pixmap)
+        else:
+            print(f"Failed to load image: {reply.errorString()}")
+        reply.deleteLater()
+
+    def go_back(self):
+        self.main_window.content_stack.setCurrentIndex(self.main_window.previous_index)  # Return to previous view
+        self.main_window.button_container.show()  # Restore left nav buttons
+        self.main_window.content_nav.show()  # Restore content nav bar
+        self.main_window.search_container.show()  # Restore search bar
 
 class Home(ContentWidget):
-    def __init__(self):
-        super().__init__("movie/popular")
+    def __init__(self, main_window):
+        super().__init__("movie/popular", main_window)
 
 class AnimeWidget(ContentWidget):
-    def __init__(self):
-        super().__init__("discover/tv?with_genres=16&with_keywords=210024|287501&first_air_date.gte=2015-03-10")
+    def __init__(self, main_window):
+        super().__init__("discover/tv?with_genres=16&with_keywords=210024|287501&first_air_date.gte=2015-03-10", main_window)
 
 class SeriesWidget(ContentWidget):
-    def __init__(self):
-        super().__init__("tv/top_rated")
+    def __init__(self, main_window):
+        super().__init__("tv/top_rated", main_window)
 
 class DiscoverWidget(QWidget):
     def __init__(self):
@@ -266,6 +412,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1900, 1080)
 
         self.is_fullscreen = False
+        self.previous_index = 0  # Track previous stack index
+        self.search_history = []  # Store up to 10 search queries
 
         # Main widget and layout
         central_widget = QWidget()
@@ -274,12 +422,12 @@ class MainWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Left navigation bar
-        left_nav = QWidget()
-        left_nav.setFixedWidth(120)
-        left_nav.setStyleSheet("background-color: #18181b;")
+        self.left_nav = QWidget()
+        self.left_nav.setFixedWidth(120)
+        self.left_nav.setStyleSheet("background-color: #18181b;")
 
         # Button container for centered layout
-        button_container = QWidget()
+        self.button_container = QWidget()
         left_nav_layout = QVBoxLayout()
         left_nav_layout.setContentsMargins(10, 10, 10, 10)
         left_nav_layout.setSpacing(60)
@@ -298,7 +446,7 @@ class MainWindow(QMainWindow):
             btn = QPushButton()
             btn.setFixedSize(90, 90)
             btn.setIcon(QIcon(label["icon"]))
-            btn.setIconSize(QSize(60, 60))
+            btn.setIconSize(QSize(50, 50))
             btn.setStyleSheet("""
                 QPushButton {
                     color: #FFFFFF;
@@ -322,15 +470,15 @@ class MainWindow(QMainWindow):
             left_nav_layout.addWidget(btn)
             self.left_nav_buttons.append(btn)
 
-        button_container.setLayout(left_nav_layout)
+        self.button_container.setLayout(left_nav_layout)
 
         # Add button container to left nav
         main_left_nav_layout = QVBoxLayout()
         main_left_nav_layout.setContentsMargins(0, 0, 0, 0)
-        main_left_nav_layout.addWidget(button_container)
+        main_left_nav_layout.addWidget(self.button_container)
         main_left_nav_layout.addStretch(1)
-        left_nav.setLayout(main_left_nav_layout)
-        main_layout.addWidget(left_nav)
+        self.left_nav.setLayout(main_left_nav_layout)
+        main_layout.addWidget(self.left_nav)
 
         # Right content area
         content_widget = QWidget()
@@ -338,7 +486,7 @@ class MainWindow(QMainWindow):
         content_layout.setSpacing(0)
         content_layout.setContentsMargins(0, 0, 0, 0)
 
-        # Top navigation bar (logo and search)
+        # Top navigation bar (search and fullscreen)
         top_nav_bar = QWidget()
         top_nav_bar.setFixedHeight(60)
         top_nav_bar.setStyleSheet("background-color: #18181b;")
@@ -348,11 +496,32 @@ class MainWindow(QMainWindow):
 
         top_nav_layout.addStretch(1)
 
-        # Search bar
-        search_bar = QLineEdit()
-        search_bar.setPlaceholderText("Search...")
-        search_bar.setFixedWidth(200)
-        search_bar.setStyleSheet("""
+        # Search bar with icon
+        self.search_container = QWidget()
+        search_layout = QHBoxLayout()
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(5)
+
+        self.search_icon = QLabel()
+        self.search_icon.setPixmap(QPixmap("imgs/search_icon.png").scaled(24, 24, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        self.search_icon.setFixedSize(24, 24)
+        self.search_icon.setStyleSheet("""
+            QLabel {
+                background-color: #252528;
+                border: none;
+                border-radius: 6px;
+                padding: 2px;
+            }
+            QLabel:hover {
+                background-color: #3a3a3c;
+            }
+        """)
+        search_layout.addWidget(self.search_icon)
+
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Search...")
+        self.search_bar.setFixedWidth(166)  # Adjusted for larger icon
+        self.search_bar.setStyleSheet("""
             QLineEdit {
                 color: #FFFFFF;
                 background-color: #252528;
@@ -365,23 +534,70 @@ class MainWindow(QMainWindow):
                 background-color: #3a3a3c;
             }
         """)
-        top_nav_layout.addWidget(search_bar)
+        self.search_bar.returnPressed.connect(self.add_search_query)
+        self.search_bar.focusInEvent = self.show_search_history
+        self.search_bar.focusOutEvent = self.hide_search_history
+        search_layout.addWidget(self.search_bar)
+
+        self.search_container.setLayout(search_layout)
+        self.search_container.setStyleSheet("background-color: #252528; border-radius: 6px;")
+        top_nav_layout.addWidget(self.search_container)
 
         top_nav_layout.addStretch(1)
 
+        # Search history list
+        self.search_history_list = QListWidget(top_nav_bar)  # Parent to top_nav_bar
+        self.search_history_list.setStyleSheet("""
+            QListWidget {
+                background-color: #252528;
+                color: #FFFFFF;
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+            }
+            QListWidget::item {
+                padding: 5px;
+            }
+            QListWidget::item:hover {
+                background-color: #3a3a3c;
+            }
+            QListWidget::item:selected {
+                background-color: #4a4a4c;
+            }
+        """)
+        self.search_history_list.setFixedWidth(190)  # Matches search_container width
+        self.search_history_list.setMaximumHeight(200)  # Limit height for up to ~10 items
+        self.search_history_list.hide()
+        self.search_history_list.itemClicked.connect(self.select_search_history_item)
+        top_nav_layout.addWidget(self.search_history_list)  # Add to layout
+
         top_nav_bar.setLayout(top_nav_layout)
-        self.fullscreen_button = QPushButton("⛶")
-        self.fullscreen_button.setStyleSheet("color:white;")
+        self.fullscreen_button = QPushButton()
+        self.fullscreen_button.setIcon(QIcon("imgs/fullscreen.png"))
+        self.fullscreen_button.setIconSize(QSize(30, 30))
         self.fullscreen_button.setFixedSize(40, 40)
+        self.fullscreen_button.setStyleSheet("""
+            QPushButton {
+                background-color: transparent;
+                border: none;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #3a3a3c;
+            }
+            QPushButton:pressed {
+                background-color: #4a4a4c;
+            }
+        """)
         self.fullscreen_button.clicked.connect(self.toggle_fullscreen)
         top_nav_layout.addWidget(self.fullscreen_button)
 
         content_layout.addWidget(top_nav_bar)
 
         # Content navigation bar (Movies, Anime, Series)
-        content_nav = QWidget()
-        content_nav.setFixedHeight(60)
-        content_nav.setStyleSheet("background-color: #18181b;")
+        self.content_nav = QWidget()
+        self.content_nav.setFixedHeight(60)
+        self.content_nav.setStyleSheet("background-color: #18181b;")
         content_nav_layout = QHBoxLayout()
         content_nav_layout.setSpacing(15)
         content_nav_layout.setContentsMargins(15, 10, 15, 10)
@@ -415,17 +631,19 @@ class MainWindow(QMainWindow):
             content_nav_layout.addWidget(btn)
             self.content_nav_buttons.append(btn)
         content_nav_layout.addStretch()
-        content_nav.setLayout(content_nav_layout)
-        content_layout.addWidget(content_nav)
+        self.content_nav.setLayout(content_nav_layout)
+        content_layout.addWidget(self.content_nav)
 
         # Content stack
         self.content_stack = QStackedWidget()
-        self.content_stack.addWidget(Home())          # Index 0: Home
-        self.content_stack.addWidget(AnimeWidget())   # Index 1: Anime
-        self.content_stack.addWidget(SeriesWidget())  # Index 2: Series
-        self.content_stack.addWidget(DiscoverWidget())# Index 3: Discover
-        self.content_stack.addWidget(LibraryWidget()) # Index 4: Library
-        self.content_stack.addWidget(CalendarWidget())# Index 5: Calendar
+        self.content_stack.addWidget(Home(self))          # Index 0: Home
+        self.content_stack.addWidget(AnimeWidget(self))   # Index 1: Anime
+        self.content_stack.addWidget(SeriesWidget(self))  # Index 2: Series
+        self.content_stack.addWidget(DiscoverWidget())    # Index 3: Discover
+        self.content_stack.addWidget(LibraryWidget())     # Index 4: Library
+        self.content_stack.addWidget(CalendarWidget())    # Index 5: Calendar
+        self.details_widget = DetailsWidget({}, {}, self) # Placeholder, updated dynamically
+        self.content_stack.addWidget(self.details_widget) # Index 6: Details
         content_layout.addWidget(self.content_stack, stretch=1)
 
         content_widget.setLayout(content_layout)
@@ -460,11 +678,9 @@ class MainWindow(QMainWindow):
     def toggle_fullscreen(self):
         if not self.is_fullscreen:
             self.showFullScreen()
-            self.fullscreen_button.setText("⛶")
             self.is_fullscreen = True
         else:
             self.showNormal()
-            self.fullscreen_button.setText("⛶")
             self.is_fullscreen = False
 
     def switch_content(self):
@@ -476,6 +692,68 @@ class MainWindow(QMainWindow):
         # Ensure left nav highlights Home when switching content
         for btn in self.left_nav_buttons:
             btn.setChecked(self.left_nav_buttons[0] == btn)
+
+    def show_details(self, item):
+        self.previous_index = self.content_stack.currentIndex()  # Save current index
+        # Hide navigation bars and search bar
+        self.button_container.hide()  # Hide left nav buttons (keep logo)
+        self.content_nav.hide()  # Hide content nav bar
+        self.search_container.hide()  # Hide search bar
+        # Create a new DetailsWidget with the selected item
+        self.content_stack.removeWidget(self.details_widget)
+        self.details_widget = DetailsWidget(item, self.content_stack.widget(0).image_cache, self)
+        self.content_stack.addWidget(self.details_widget)
+        self.content_stack.setCurrentIndex(self.content_stack.count() - 1)  # Show details
+
+    def add_search_query(self):
+        query = self.search_bar.text().strip()
+        if query and query not in self.search_history:
+            self.search_history.append(query)
+            if len(self.search_history) > 10:
+                self.search_history.pop(0)
+            self.update_search_history_list()
+        # Placeholder for actual search functionality
+        print(f"Searching for: {query}")
+
+    def update_search_history_list(self):
+        self.search_history_list.clear()
+        # Add "Clear History" item
+        clear_item = QListWidgetItem("Clear History")
+        clear_item.setData(Qt.UserRole, "clear")
+        self.search_history_list.addItem(clear_item)
+        # Add search history items
+        for query in reversed(self.search_history):  # Most recent first
+            item = QListWidgetItem(query)
+            item.setData(Qt.UserRole, query)
+            self.search_history_list.addItem(item)
+
+    def show_search_history(self, event):
+        super(QLineEdit, self.search_bar).focusInEvent(event)
+        if self.search_history:
+            self.update_search_history_list()
+            # Position below search bar
+            search_bar_pos = self.search_bar.mapToGlobal(self.search_bar.pos())
+            top_nav_bar_pos = self.search_bar.parentWidget().parentWidget().mapToGlobal(self.search_bar.parentWidget().parentWidget().pos())
+            x = search_bar_pos.x() - top_nav_bar_pos.x()
+            y = search_bar_pos.y() - top_nav_bar_pos.y() + self.search_bar.height() + 5
+            self.search_history_list.move(x, y)
+            self.search_history_list.show()
+
+    def hide_search_history(self, event):
+        super(QLineEdit, self.search_bar).focusOutEvent(event)
+        # Delay hiding to allow clicking items
+        QTimer.singleShot(200, self.search_history_list.hide)
+
+    def select_search_history_item(self, item):
+        data = item.data(Qt.UserRole)
+        if data == "clear":
+            self.search_history.clear()
+            self.search_history_list.clear()
+        else:
+            self.search_bar.setText(data)
+            self.search_bar.setFocus()
+            # Placeholder for actual search
+            print(f"Selected search: {data}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
