@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QScrollArea,
     QLabel, QFrame, QPushButton, QStackedWidget, QLineEdit, QListWidget, QListWidgetItem
 )
-from PyQt5.QtCore import Qt, QTimer, QUrl, QSize, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, QUrl, QSize, pyqtSignal, QPoint
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
 from PyQt5.QtGui import QPixmap, QPainter, QPainterPath, QIcon
 
@@ -410,16 +410,96 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("CaesarAIMoviesStream")
         self.setStyleSheet("background-color: #18181b;")
         self.setMinimumSize(1900, 1080)
+        self.setWindowIcon(QIcon("imgs/CaesarAIMoviesLogo.png"))  # Replace with your icon path
 
+        # Make the window frameless
+        self.setWindowFlags(Qt.FramelessWindowHint)
+
+        # Variables for dragging
+        self.dragging = False
+        self.drag_position = QPoint()
         self.is_fullscreen = False
         self.previous_index = 0  # Track previous stack index
         self.search_history = []  # Store up to 10 search queries
 
         # Main widget and layout
         central_widget = QWidget()
-        main_layout = QHBoxLayout()
+        main_layout = QVBoxLayout()  # Changed to QVBoxLayout to accommodate title bar
         main_layout.setSpacing(0)
         main_layout.setContentsMargins(0, 0, 0, 0)
+
+        # Custom title bar
+        self.title_bar = QWidget(self)
+        self.title_bar.setFixedHeight(40)
+        self.title_bar.setStyleSheet("""
+            QWidget {
+                background-color: #18181b; /* Match app background */
+                border-top-left-radius: 10px;
+                border-top-right-radius: 10px;
+            }
+        """)
+        title_layout = QHBoxLayout(self.title_bar)
+        title_layout.setContentsMargins(10, 0, 10, 0)
+        title_layout.setSpacing(10)
+
+        # Title bar logo
+        logo_label = QLabel()
+        logo_label.setFixedSize(30, 30)
+        logo_label.setPixmap(QPixmap("imgs/CaesarAIMoviesLogo.png").scaled(30, 30, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        title_layout.addWidget(logo_label)
+
+        # Title label
+        title_label = QLabel("CaesarAIMoviesStream")
+        title_label.setStyleSheet("color: #FFFFFF; font-size: 20px; font-weight: bold;font-family:Calibri;")
+        title_layout.addWidget(title_label)
+        title_layout.addStretch()
+
+        # Minimize button
+        self.minimize_button = QPushButton("🗕")
+        self.minimize_button.setFixedSize(30, 30)
+        self.minimize_button.setStyleSheet("""
+            QPushButton {
+                background-color: #18181b; color: #FFFFFF; border: none;
+                font-size: 14px;
+            }
+            QPushButton:hover { background-color: #3a3a3c; }
+        """)
+        self.minimize_button.clicked.connect(self.showMinimized)
+        title_layout.addWidget(self.minimize_button)
+
+        # Maximize/Restore button
+        self.maximize_button = QPushButton("🗖")
+        self.maximize_button.setFixedSize(30, 30)
+        self.maximize_button.setStyleSheet("""
+            QPushButton {
+                background-color: #18181b; color: #FFFFFF; border: none;
+                font-size: 14px;
+            }
+            QPushButton:hover { background-color: #3a3a3c; }
+        """)
+        self.maximize_button.clicked.connect(self.toggle_maximize)
+        title_layout.addWidget(self.maximize_button)
+
+        # Close button
+        self.close_button = QPushButton("🗙")
+        self.close_button.setFixedSize(30, 30)
+        self.close_button.setStyleSheet("""
+            QPushButton {
+                background-color: #18181b; color: #FFFFFF; border: none;
+                font-size: 14px;
+            }
+            QPushButton:hover { background-color: #ff0000; }
+        """)
+        self.close_button.clicked.connect(self.close)
+        title_layout.addWidget(self.close_button)
+
+        main_layout.addWidget(self.title_bar)
+
+        # Content container (original main layout)
+        content_container = QWidget()
+        content_main_layout = QHBoxLayout()
+        content_main_layout.setSpacing(0)
+        content_main_layout.setContentsMargins(0, 0, 0, 0)
 
         # Left navigation bar
         self.left_nav = QWidget()
@@ -478,7 +558,7 @@ class MainWindow(QMainWindow):
         main_left_nav_layout.addWidget(self.button_container)
         main_left_nav_layout.addStretch(1)
         self.left_nav.setLayout(main_left_nav_layout)
-        main_layout.addWidget(self.left_nav)
+        content_main_layout.addWidget(self.left_nav)
 
         # Right content area
         content_widget = QWidget()
@@ -647,7 +727,10 @@ class MainWindow(QMainWindow):
         content_layout.addWidget(self.content_stack, stretch=1)
 
         content_widget.setLayout(content_layout)
-        main_layout.addWidget(content_widget, stretch=1)
+        content_main_layout.addWidget(content_widget, stretch=1)
+
+        content_container.setLayout(content_main_layout)
+        main_layout.addWidget(content_container, stretch=1)
 
         central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
@@ -655,6 +738,56 @@ class MainWindow(QMainWindow):
         # Set initial state
         self.content_nav_buttons[0].setChecked(True)
         self.left_nav_buttons[0].setChecked(True)
+
+        # Apply rounded corners to central widget
+
+
+    def toggle_maximize(self):
+        if self.isMaximized():
+            self.showNormal()
+            self.maximize_button.setText("🗖")
+            self.fullscreen_button.setIcon(QIcon("imgs/fullscreen.png"))
+            self.is_fullscreen = False
+        else:
+            self.showMaximized()
+            self.maximize_button.setText("🗗")
+            self.fullscreen_button.setIcon(QIcon("imgs/fullscreen_exit.png"))  # Replace with your exit fullscreen icon
+            self.is_fullscreen = True
+
+    def toggle_fullscreen(self):
+        if not self.is_fullscreen:
+            self.showMaximized()
+            self.maximize_button.setText("🗗")
+            self.fullscreen_button.setIcon(QIcon("imgs/fullscreen_exit.png"))  # Replace with your exit fullscreen icon
+            self.title_bar.hide()
+            self.is_fullscreen = True
+        else:
+            self.showNormal()
+            self.maximize_button.setText("🗖")
+            self.fullscreen_button.setIcon(QIcon("imgs/fullscreen.png"))
+            self.title_bar.show()
+            self.is_fullscreen = False
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton and self.title_bar.geometry().contains(event.pos()):
+            self.dragging = True
+            self.drag_position = event.globalPos() - self.pos()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self.dragging and event.buttons() == Qt.LeftButton:
+            self.move(event.globalPos() - self.drag_position)
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.dragging = False
+            event.accept()
+
+    def resizeEvent(self, event):
+        # Adjust title bar width when window is resized
+        self.title_bar.resize(self.width(), 40)
+        super().resizeEvent(event)
 
     def navigate_left_nav_widget(self):
         sender = self.sender()
@@ -674,14 +807,6 @@ class MainWindow(QMainWindow):
         if stack_index >= 3:  # Discover, Library, Calendar
             for btn in self.content_nav_buttons:
                 btn.setChecked(False)
-
-    def toggle_fullscreen(self):
-        if not self.is_fullscreen:
-            self.showFullScreen()
-            self.is_fullscreen = True
-        else:
-            self.showNormal()
-            self.is_fullscreen = False
 
     def switch_content(self):
         sender = self.sender()
@@ -728,7 +853,7 @@ class MainWindow(QMainWindow):
             self.search_history_list.addItem(item)
 
     def show_search_history(self, event):
-        super(QLineEdit, self.search_bar).focusInEvent(event)
+        QLineEdit.focusInEvent(self.search_bar, event)  # Call base class method
         if self.search_history:
             self.update_search_history_list()
             # Position below search bar
@@ -740,7 +865,7 @@ class MainWindow(QMainWindow):
             self.search_history_list.show()
 
     def hide_search_history(self, event):
-        super(QLineEdit, self.search_bar).focusOutEvent(event)
+        QLineEdit.focusOutEvent(self.search_bar, event)  # Call base class method
         # Delay hiding to allow clicking items
         QTimer.singleShot(200, self.search_history_list.hide)
 
