@@ -600,7 +600,7 @@ class MainWindow(QMainWindow):
 
         self.search_bar = QLineEdit()
         self.search_bar.setPlaceholderText("Search...")
-        self.search_bar.setFixedWidth(166)  # Adjusted for larger icon
+        self.search_bar.setFixedWidth(500)  # Adjusted for larger icon
         self.search_bar.setStyleSheet("""
             QLineEdit {
                 color: #FFFFFF;
@@ -610,9 +610,9 @@ class MainWindow(QMainWindow):
                 padding: 5px;
                 font-size: 14px;
             }
-            QLineEdit:focus {
+            /*QLineEdit:focus {
                 background-color: #3a3a3c;
-            }
+            }*/
         """)
         self.search_bar.returnPressed.connect(self.add_search_query)
         self.search_bar.focusInEvent = self.show_search_history
