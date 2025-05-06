@@ -1,0 +1,60 @@
+import sys
+import asyncio
+import websockets
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QLabel, QWidget
+
+# WebSocket Worker Thread
+class WebSocketThread(QThread):
+    new_message_signal = pyqtSignal(str)  # Signal to send new message to main thread
+
+    def __init__(self, uri):
+        super().__init__()
+        self.uri = uri
+
+    async def connect_and_listen(self):
+        """ Connect to the WebSocket server and listen for messages """
+        async with websockets.connect(self.uri) as websocket:
+            async for message in websocket:
+                # Emit the message to the main thread for UI update
+                self.new_message_signal.emit(message)
+
+    def run(self):
+        """ Start WebSocket connection and listen for messages """
+        loop = asyncio.new_event_loop()  # Create a new event loop for the thread
+        asyncio.set_event_loop(loop)  # Set the event loop for the thread
+        loop.run_until_complete(self.connect_and_listen())
+
+class MyWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("WebSocket to PyQt5")
+        self.setGeometry(100, 100, 600, 400)
+
+        # Label to display WebSocket data
+        self.label = QLabel("Waiting for WebSocket messages...", self)
+        self.label.setAlignment(Qt.AlignCenter)
+
+        # Layout to organize the UI elements
+        layout = QVBoxLayout()
+        layout.addWidget(self.label)
+
+        # Main widget for the window
+        container = QWidget()
+        container.setLayout(layout)
+        self.setCentralWidget(container)
+
+        # Initialize WebSocket thread
+        self.websocket_thread = WebSocketThread('ws://localhost:8765')  # Replace with your WebSocket server URI
+        self.websocket_thread.new_message_signal.connect(self.update_label)  # Connect signal to UI update method
+        self.websocket_thread.start()  # Start the WebSocket thread
+
+    def update_label(self, message):
+        """ Update the label with the new WebSocket message """
+        self.label.setText(message)
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    window = MyWindow()
+    window.show()
+    sys.exit(app.exec_())

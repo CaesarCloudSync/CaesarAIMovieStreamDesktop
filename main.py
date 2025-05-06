@@ -248,6 +248,7 @@ class DetailsWidget(QWidget):
     def __init__(self, item, image_cache, main_window, parent=None):
         super().__init__(parent)
         self.item = item
+        print(item)
         self.image_cache = image_cache
         self.main_window = main_window  # Reference to MainWindow
 
@@ -320,6 +321,9 @@ class DetailsWidget(QWidget):
 
         layout.addStretch()
         self.setLayout(layout)
+    def showEvent(self, event):
+        return super().showEvent(event)
+    
 
     def set_rounded_image(self, label, pixmap, radius=10):
         scaled_pixmap = pixmap.scaled(
