@@ -4,10 +4,11 @@ from PyQt5.QtCore import Qt, QTimer
 
 
 class MediaPlayer(QWidget):
-    def __init__(self, vlc_instance, vlc_player):
+    def __init__(self, vlc_instance, vlc_player,main_window):
         super().__init__()
         self.player = vlc_player
         self.instance = vlc_instance
+        self.main_window = main_window
         self.is_fullscreen = False
         self.is_paused = False
         self.audio_tracks = []
