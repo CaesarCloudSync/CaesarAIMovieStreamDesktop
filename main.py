@@ -7,7 +7,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QTimer, QUrl, QSize, pyqtSignal, QPoint
 from PyQt5.QtNetwork import QNetworkAccessManager, QNetworkRequest, QNetworkReply
-from PyQt5.QtGui import QPixmap, QPainter, QPainterPath, QIcon
+from PyQt5.QtGui import QPixmap, QPainter, QPainterPath, QIcon,QCursor
 
 # TMDb API key
 TMDB_API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJmZTlkOTQ4OWE1MzMwMGI4ZGE4NTBlNjM0OTQ3NWM1MiIsIm5iZiI6MTcwNTM1MDU2Ni44LCJzdWIiOiI2NWE1OTVhNmQwNWEwMzAwYzhhOWViYzYiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.Co9vbQKxQUwV5sbON3CzQ3jUPHBvwMRrkFVn3V8WNzE"
@@ -673,6 +673,7 @@ class MainWindow(QMainWindow):
                 background-color: #4a4a4c;
             }
         """)
+        self.fullscreen_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.fullscreen_button.clicked.connect(self.toggle_fullscreen)
         top_nav_layout.addWidget(self.fullscreen_button)
 
@@ -710,6 +711,7 @@ class MainWindow(QMainWindow):
                     border-bottom: 2px solid #FFFFFF;
                 }
             """)
+            btn.setCursor(QCursor(Qt.PointingHandCursor))
             btn.setCheckable(True)
             btn.clicked.connect(self.switch_content)
             content_nav_layout.addWidget(btn)
