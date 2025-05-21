@@ -267,7 +267,6 @@ class StreamModal(QDialog):
             border: none;
             border-radius: 6px;
         """)
-        print("hello.Modal")
         self.update_streams(streams)
         layout.addWidget(QLabel(f"Streams for {series_name} S{season}E{episode} (Total: {total_streams})"))
         layout.addWidget(self.stream_list)
@@ -297,7 +296,6 @@ class StreamModal(QDialog):
             item = QListWidgetItem(f"Stream: {stream.get('title', 'Unknown')}")
             item.setData(Qt.UserRole, stream.get('magnet_link'))
             self.stream_list.addItem(item)
-    def connect_streams_button(self):
         self.stream_list.itemClicked.connect(self.on_stream_selected)
 
     def on_stream_selected(self, item):
@@ -618,9 +616,8 @@ class DetailsWidget(QWidget):
                 self.total_streams = data.get("total", 0)
                 self.modal.update_streams(self.streams)
                 self.modal.setWindowTitle(f"Streaming Options (Total: {self.total_streams})")
-            elif data.get("event").get("close"):
-                self.modal.connect_streams_button()
-                #self.close_websocket()
+            elif data.get("type") == "close":
+                self.close_websocket()
         except json.JSONDecodeError as e:
             print(f"WebSocket message parse error: {e}")
 
@@ -641,34 +638,9 @@ class DetailsWidget(QWidget):
         print("Finished Torrenting.")
         _id = data["id"]
         response = requests.get("https://movies.caesaraihub.org/api/v1/get_container_links",params={"_id":_id})
-        streams_json = response.json()
-        streams = streams_json["streams"]
-        filtered = filter(lambda ep: ep["season"] == season and ep["episode"] == episode, streams)
-
-        # Get the first match (there should only be one if it's unique)
-        result = next(filtered, None)  # Will return None if no match is found
-
-        # Get the streaming link value
-        if result:
-            streaming_url = result["download"]
-            print(result["download"])
-        else:
-            streaming_url = ""
-            
-            print("No match found")
-        
+        streams = response.json()
+        streaming_url = streams["download"]
         print(streaming_url)
-        # Navigate to MediaPlayer widget
-        if streaming_url:
-            # Remove the old MediaPlayer widget if it exists
-            for i in range(self.main_window.content_stack.count()):
-                if isinstance(self.main_window.content_stack.widget(i), MediaPlayer):
-                    self.main_window.content_stack.removeWidget(self.main_window.content_stack.widget(i))
-                    break
-            # Create a new MediaPlayer instance with the streaming URL
-            media_player = MediaPlayer(self.main_window.instance, self.main_window.player,stream,streams,streaming_url,episode,season,self.main_window)
-            self.main_window.content_stack.addWidget(media_player)
-            self.main_window.content_stack.setCurrentIndex(self.main_window.content_stack.count() - 1)  # Switch to MediaPlayer
         # TODO Navigate to Media Player from Here
        # print(self.main_window.content_stack.count())
        # self.main_window.content_stack.setCurrentIndex(8)
@@ -678,6 +650,9 @@ class DetailsWidget(QWidget):
         #self.main_window.content_stack.addWidget(self.details_widget)
         #self.main_window.content_stack.setCurrentIndex(self.content_stack.count() - 1)  # Show details
 
+        with open("current_stream.json", "w") as f:
+            json.dump(data, f)
+        print(f"Stream selected: {stream_id} for S{season}E{episode}")
         self.close_websocket()
         
         #self.go_back()  # Return to previous view
@@ -1065,7 +1040,8 @@ class MainWindow(QMainWindow):
         self.content_stack.addWidget(LibraryWidget())     # Index 4: Library
         self.content_stack.addWidget(CalendarWidget())    # Index 5: Calendar
         self.details_widget = DetailsWidget({}, {}, self) # Placeholder, updated dynamically
-        self.content_stack.addWidget(self.details_widget) # Index 6: Details  
+        self.content_stack.addWidget(self.details_widget) # Index 6: Details
+        self.content_stack.addWidget(MediaPlayer(self.instance,self.player,self))  
         content_layout.addWidget(self.content_stack, stretch=1)
 
         content_widget.setLayout(content_layout)

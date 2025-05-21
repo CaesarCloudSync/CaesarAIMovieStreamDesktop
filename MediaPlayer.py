@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt, QTimer
 
 
 class MediaPlayer(QWidget):
-    def __init__(self, vlc_instance, vlc_player,main_window):
+    def __init__(self, vlc_instance, vlc_player,stream,streams,streaming_url,episode,season,main_window):
         super().__init__()
         self.player = vlc_player
         self.instance = vlc_instance
@@ -17,12 +17,7 @@ class MediaPlayer(QWidget):
         layout = QVBoxLayout()
         layout.setSpacing(5)
         layout.setContentsMargins(0, 0, 0, 0)
-        
-        # URL input
-        self.url_input = QLineEdit()
-        self.url_input.setText("https://100-4.download.real-debrid.com/d/HJAVFYQOHZGIG/S01E10-ReFulgent%20%5B305E66C5%5D.mkv")
-        self.url_input.setStyleSheet("background-color: #2a2a2a; color: #FFFFFF; border: 1px solid #333333; border-radius: 5px; padding: 5px;")
-        layout.addWidget(self.url_input)
+        self.streaming_url = streaming_url
         
         # Video frame
         self.video_frame = QFrame()
@@ -106,6 +101,7 @@ class MediaPlayer(QWidget):
         self.timer.timeout.connect(self.update_ui)
         
         self.setLayout(layout)
+        #self.player.set_pause(0)
 
     def toggle_play_pause(self):
         if self.is_paused:
@@ -123,7 +119,7 @@ class MediaPlayer(QWidget):
             self.is_paused = True
         else:
             # Start new playback
-            url = self.url_input.text()
+            url = self.streaming_url
             if url:
                 try:
                     media = self.instance.media_new(url)
