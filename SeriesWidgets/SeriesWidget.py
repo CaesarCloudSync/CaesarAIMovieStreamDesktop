@@ -24,6 +24,7 @@ class SeriesWidget(QWidget):
         self.number_of_episodes = 0
         self.streams = []
         self.total_streams = 0
+        self.total_indexers = 0
         self.websocket = None
         self.current_season = None
         self.current_episode = None
@@ -350,7 +351,7 @@ class SeriesWidget(QWidget):
             item = QListWidgetItem(f"Stream: {stream.get('title', 'Unknown')}")
             item.setData(Qt.UserRole, stream.get('magnet_link'))
             self.stream_list.addItem(item)
-        self.streams_title.setText(f"Streams for {self.item.get('name')} S{self.current_season}E{self.current_episode} (Total: {self.total_streams})")
+        self.streams_title.setText(f"Streams for {self.item.get('name')} S{self.current_season}E{self.current_episode} (Total: {self.total_streams}/{self.total_indexers})")
         self.stream_list.show()
         self.streams_title.show()
 
@@ -394,17 +395,24 @@ class SeriesWidget(QWidget):
     def on_websocket_disconnected(self):
         print("WebSocket disconnected")
         self.websocket = None
-
+    def get_number_of_indexers(self):
+        response = requests.get("https://movies.caesaraihub.org/api/v1/get_indexers")
+        indexers = response.json().get("indexers")
+        return indexers
     def on_websocket_message(self, message):
         try:
             data = json.loads(message)
+            self.total_indexers = len(self.get_number_of_indexers())
             if data.get("event").get("episodes"):
                 next_stream = data.get("event").get("episodes").get("data", {}).get("episodes")
                 self.streams.append(next_stream)
-                self.total_streams = data.get("total", 0)
+                
                 self.update_streams(self.streams)
             elif data.get("event").get("close"):
                 print("WebSocket stream collection closed")
+            elif data.get("event").get("log"):
+                print(data,self.total_streams)
+                self.total_streams += 1
             else:
                 print(data)
         except json.JSONDecodeError as e:
