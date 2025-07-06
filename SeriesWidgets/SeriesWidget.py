@@ -144,7 +144,8 @@ class SeriesWidget(QWidget):
         content_split_layout.addWidget(left_container, stretch=1)
 
         # Right side: Streams section
-        streams_container = QWidget()
+        self.streams_container = QWidget()
+        self.streams_container.hide()
         streams_layout = QVBoxLayout()
         streams_layout.setSpacing(10)
         streams_layout.setContentsMargins(0, 0, 0, 0)
@@ -171,9 +172,9 @@ class SeriesWidget(QWidget):
         exit_button.clicked.connect(self.clear_streams)
         buttons_layout.addWidget(exit_button)
 
-        minimize_button = QPushButton("−")
-        minimize_button.setFixedSize(30, 30)
-        minimize_button.setStyleSheet("""
+        self.minimize_button = QPushButton("−")
+        self.minimize_button.setFixedSize(30, 30)
+        self.minimize_button.setStyleSheet("""
             QPushButton {
                 color: #FFFFFF;
                 background-color: #ffcc00;
@@ -185,8 +186,8 @@ class SeriesWidget(QWidget):
                 background-color: #cc9900;
             }
         """)
-        minimize_button.clicked.connect(self.toggle_streams)
-        buttons_layout.addWidget(minimize_button)
+        self.minimize_button.clicked.connect(self.toggle_streams)
+        buttons_layout.addWidget(self.minimize_button)
 
         streams_layout.addLayout(buttons_layout)
 
@@ -196,10 +197,11 @@ class SeriesWidget(QWidget):
         streams_layout.addWidget(self.streams_title)
 
         # Streams scroll area
-        streams_scroll_area = QScrollArea()
-        streams_scroll_area.setWidgetResizable(True)
-        streams_scroll_area.setMinimumWidth(300)
-        streams_scroll_area.setStyleSheet("""
+        self.streams_scroll_area = QScrollArea()
+        self.streams_scroll_area.setWidgetResizable(True)
+        self.streams_scroll_area.setMinimumWidth(300)
+        self.streams_scroll_area.setMinimumHeight(0)
+        self.streams_scroll_area.setStyleSheet("""
             QScrollArea {
                 background-color: #18181b;
                 border: none;
@@ -235,11 +237,11 @@ class SeriesWidget(QWidget):
         streams_widget_layout.addWidget(self.stream_list)
 
         streams_widget.setLayout(streams_widget_layout)
-        streams_scroll_area.setWidget(streams_widget)
-        streams_layout.addWidget(streams_scroll_area, stretch=1)
+        self.streams_scroll_area.setWidget(streams_widget)
+        streams_layout.addWidget(self.streams_scroll_area, stretch=1)
 
-        streams_container.setLayout(streams_layout)
-        content_split_layout.addWidget(streams_container, stretch=1)
+        self.streams_container.setLayout(streams_layout)
+        left_layout.addWidget(self.streams_container, stretch=1)
 
         content_layout.addLayout(content_split_layout)
 
@@ -342,6 +344,8 @@ class SeriesWidget(QWidget):
 
     def update_streams(self, streams):
         self.stream_list.clear()
+        self.streams_scroll_area.setMinimumHeight(300)
+        self.streams_container.show()
         for stream in streams:
             item = QListWidgetItem(f"Stream: {stream.get('title', 'Unknown')}")
             item.setData(Qt.UserRole, stream.get('magnet_link'))
@@ -363,9 +367,12 @@ class SeriesWidget(QWidget):
         if self.streams_visible:
             self.stream_list.show()
             self.streams_title.show()
+            self.streams_scroll_area.setMinimumHeight(300)
         else:
             self.stream_list.hide()
             self.streams_title.hide()
+            self.streams_scroll_area.setMinimumHeight(0)
+            
 
     def start_streaming(self, season_number, episode):
         self.clear_streams()
@@ -398,6 +405,8 @@ class SeriesWidget(QWidget):
                 self.update_streams(self.streams)
             elif data.get("event").get("close"):
                 print("WebSocket stream collection closed")
+            else:
+                print(data)
         except json.JSONDecodeError as e:
             print(f"WebSocket message parse error: {e}")
 
